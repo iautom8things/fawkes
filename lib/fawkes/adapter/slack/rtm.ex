@@ -2,10 +2,13 @@ defmodule Fawkes.Adapter.Slack.RTM do
   @moduledoc false
   @behaviour :websocket_client
 
+  require Logger
+
   alias Fawkes.HTTPClient
   alias Fawkes.EventProducer
   alias Fawkes.Event.{
     Message,
+    ThreadedReply,
     ReactionAdded,
     ReactionRemoved,
     ChannelJoined,
@@ -70,8 +73,14 @@ defmodule Fawkes.Adapter.Slack.RTM do
     message = prepare_message(message)
     event = build_event(message, state)
 
-    unless event == nil do
-      Fawkes.EventProducer.notify(state.producer, event)
+    case event do
+      %ThreadedReply{} ->
+        Logger.debug("Skipping threaded reply")
+        :skip
+      nil ->
+        :skip
+      _ ->
+        Fawkes.EventProducer.notify(state.producer, event)
     end
 
     {:ok, state}
@@ -92,6 +101,22 @@ defmodule Fawkes.Adapter.Slack.RTM do
     |> :binary.split(<<0>>)
     |> List.first()
     |> Jason.decode!()
+  end
+
+  defp build_event(%{"type" => "message", "subtype" => "message_replied"}=event, state) do
+    user        = get_user(event["user"], state)
+    app         = get_app(event["bot_profile"])
+    channel     = get_channel(event["channel"], state)
+    attachments = get_attachments(event["attachments"])
+
+    %ThreadedReply{
+      bot: self(),
+      id: event["ts"],
+      user: user,
+      app: app,
+      channel: channel,
+      attachments: attachments,
+    }
   end
 
   defp build_event(%{"type" => "message"}=event, state) do

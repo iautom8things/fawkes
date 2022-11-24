@@ -20,6 +20,21 @@ defmodule Fawkes.Event do
     ]
   end
 
+  defmodule ThreadedReply do
+    @moduledoc false
+    defstruct [
+      bot: nil,
+      id: nil,
+      text: "",
+      thread: nil,
+      user: %{id: nil, real_name: nil},
+      app: %{id: nil, bot_id: nil, name: nil},
+      channel: %{id: nil, name: nil},
+      mentions: [],
+      attachments: [],
+    ]
+  end
+
   defmodule ReactionAdded do
     @moduledoc false
     defstruct [
