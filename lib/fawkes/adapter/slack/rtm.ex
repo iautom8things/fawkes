@@ -8,6 +8,8 @@ defmodule Fawkes.Adapter.Slack.RTM do
   alias Fawkes.EventProducer
   alias Fawkes.Event.{
     Message,
+    MessageChange,
+    MessageDelete,
     ThreadedReply,
     ReactionAdded,
     ReactionRemoved,
@@ -77,6 +79,12 @@ defmodule Fawkes.Adapter.Slack.RTM do
       %ThreadedReply{} ->
         Logger.debug("Skipping threaded reply")
         :skip
+      %MessageChange{} ->
+        Logger.debug("Skipping edit")
+        :skip
+      %MessageDelete{} ->
+        Logger.debug("Skipping delete")
+        :skip
       nil ->
         :skip
       _ ->
@@ -101,6 +109,38 @@ defmodule Fawkes.Adapter.Slack.RTM do
     |> :binary.split(<<0>>)
     |> List.first()
     |> Jason.decode!()
+  end
+
+  defp build_event(%{"type" => "message", "subtype" => "message_deleted"}=event, state) do
+    user        = get_user(event["user"], state)
+    app         = get_app(event["bot_profile"])
+    channel     = get_channel(event["channel"], state)
+    attachments = get_attachments(event["attachments"])
+
+    %MessageDelete{
+      bot: self(),
+      id: event["ts"],
+      user: user,
+      app: app,
+      channel: channel,
+      attachments: attachments,
+    }
+  end
+
+  defp build_event(%{"type" => "message", "subtype" => "message_changed"}=event, state) do
+    user        = get_user(event["user"], state)
+    app         = get_app(event["bot_profile"])
+    channel     = get_channel(event["channel"], state)
+    attachments = get_attachments(event["attachments"])
+
+    %MessageChange{
+      bot: self(),
+      id: event["ts"],
+      user: user,
+      app: app,
+      channel: channel,
+      attachments: attachments,
+    }
   end
 
   defp build_event(%{"type" => "message", "subtype" => "message_replied"}=event, state) do
